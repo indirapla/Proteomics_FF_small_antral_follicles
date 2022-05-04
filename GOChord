@@ -1,0 +1,54 @@
+#========Follicular fluid from unstimulated ovarian small antral follicles=====Figure 4a. PathwayChord
+
+#   Paper: Proteome of fluid from human ovarian small antral follicles reveals insights in folliculogenesis and oocyte maturation
+# Authors: Indira Pla, Aniel Sanchez, Susanne Elisabeth Pors, Krzysztof Pawlowski, Roger Appelqvist, K Barbara Sahlin, 
+#          Liv La Cour Poulsen, György Marko-Varga, Claus Yding Andersen, Johan Malm Author Notes
+
+# Proteins that significantly correlated
+# with MDK/VIM were subjected to a biological pathway enrichment
+# analysis in FunRich (background: FunRich database) and pathways with
+# a significant enrichment score (BH method: adj. P-value <0.05) were visualized using a Chord plot
+#====INSTALL PACKAGES================================================================================
+
+# List of packages to install
+.packages = c("GOplot", "BiocManager")
+
+
+# Install packages if not installed
+.inst <- .packages %in% installed.packages()
+if(length(.packages[!.inst]) > 0) {install.packages(.packages[!.inst])}
+
+# Loading packages
+lapply(.packages, require, character.only=TRUE)
+#======END INSTALL PACKAGES============================================================================
+
+#=====Loading dataset================================================================================== 
+# Download files "GO_Funrinch_Pathway.txt" and "genelist3_sin krt2_r65.txt" to your computer and 
+# read (upload) them from RStudio to start doing the analysis.
+
+Pathway <- read.delim("GO_Funrinch_Pathway.txt", header = TRUE,row.names = NULL)
+head(DAVID)
+
+GENELIST <- read.delim("genelist3_sin krt2_r65.txt", header = T,row.names = NULL)
+head(GENELIST)
+#=======================================================================
+
+# #==my data
+
+circ1 <- circle_dat(Pathway, GENELIST)
+
+circ1 <- circ1[order(circ1$category,-circ1$logFC),]
+circ1 <- subset(circ1,circ1$category=="Pathway")
+circ1 <- circ1[order(-circ1$logFC, circ1$term),]
+
+geness <- GENELIST[,1:2]
+head(geness)
+
+# Generate the matrix with a list of selected genes
+chord <- chord_dat(data = circ1, genes = geness)
+
+
+GOChord(chord, space = 0.02, gene.order = 'logFC',gene.space = 0.25, gene.size = 2.5, process.label=9)
+
+#END
+
