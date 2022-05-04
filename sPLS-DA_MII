@@ -1,7 +1,9 @@
-##=====Follicular fluid=====Metaphase II samples
-##http://mixomics.org/graphics/sample-plots/plotindiv/
+#========Follicular fluid from unstimulated ovarian small antral follicles=====Metaphase II samples=
 
-setwd("E:/Work/TP PROJECT/DATA ANALYSIS/02 Follicles study/Metaphase2/Analysis in R") 
+#   Paper: Proteome of fluid from human ovarian small antral follicles reveals insights in folliculogenesis and oocyte maturation
+# Authors: Indira Pla, Aniel Sanchez, Susanne Elisabeth Pors, Krzysztof Pawlowski, Roger Appelqvist, K Barbara Sahlin, 
+#          Liv La Cour Poulsen, György Marko-Varga, Claus Yding Andersen, Johan Malm Author Notes
+
 
 #====INSTALL PACKAGES================================================================================
 
@@ -27,6 +29,8 @@ if(length(.packages[!.inst]) > 0) {install.packages(.packages[!.inst])
 # Carga los paquetes sinó los tienes cargados
 lapply(.packages, require, character.only=TRUE)
 #======END INSTALL PACKAGES============================================================================
+
+##http://mixomics.org/graphics/sample-plots/plotindiv/
 
 #=====Loading dataset================================================================================== 
 Big.table <- as.data.frame(readxl::read_excel("./Indira meta2_2020_short3.xlsx")) # Open the data
@@ -138,6 +142,7 @@ row.Annotations$Log10.p <- log10(row.Annotations$q.values)*(-1)
 
       
 ##====STUDENT t-test with paired data=======UNIVARIATE ANALYSIS ============      
+
 loading.matrix.X <- as.data.frame(loading.matrix.X)
 head(loading.matrix.X)
 
