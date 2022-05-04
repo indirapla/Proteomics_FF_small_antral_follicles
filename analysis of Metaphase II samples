@@ -7,14 +7,15 @@
 
 #====INSTALL PACKAGES================================================================================
 
-# Lista de paquetes de funciones a instalar
+# List of packages to install
 .packages = c("BiocManager","devtools","ggplot2","ggbiplot", "pca3d","pcadapt","outliers","igraph",
               "RFmarkerDetector", "rgl","graphics","reshape2","dplyr","ggpubr","remotes",
               "FactoMineR", "factoextra","corrplot","ggpubr","fpc", "NbClust","mixOmics", 
               "phyloseq","lme4","nlme","car","plotly","RadaFDR","GOplot","pheatmap","circlize",
               "GOsummaries","EnhancedVolcano","ComplexHeatmap","Hmisc","samr","d3heatmap","simplifyEnrichment")
-#"RFunrichWebService",
-# Instala los paquetes sinó los tienes instalados
+
+
+# Install packages if not installed
 .inst <- .packages %in% installed.packages()
 if(length(.packages[!.inst]) > 0) {install.packages(.packages[!.inst])
   install_github("vqv/ggbiplot")
@@ -26,7 +27,7 @@ if(length(.packages[!.inst]) > 0) {install.packages(.packages[!.inst])
   BiocManager::install("simplifyEnrichment")
   }
 
-# Carga los paquetes sinó los tienes cargados
+# Loading of packages
 lapply(.packages, require, character.only=TRUE)
 #======END INSTALL PACKAGES============================================================================
 
