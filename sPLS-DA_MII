@@ -1,0 +1,467 @@
+##=====Follicular fluid=====Metaphase II samples
+##http://mixomics.org/graphics/sample-plots/plotindiv/
+
+setwd("E:/Work/TP PROJECT/DATA ANALYSIS/02 Follicles study/Metaphase2/Analysis in R") 
+
+#====INSTALL PACKAGES================================================================================
+
+# Lista de paquetes de funciones a instalar
+.packages = c("BiocManager","devtools","ggplot2","ggbiplot", "pca3d","pcadapt","outliers","igraph",
+              "RFmarkerDetector", "rgl","graphics","reshape2","dplyr","ggpubr","remotes",
+              "FactoMineR", "factoextra","corrplot","ggpubr","fpc", "NbClust","mixOmics", 
+              "phyloseq","lme4","nlme","car","plotly","RadaFDR","GOplot","pheatmap","circlize",
+              "GOsummaries","EnhancedVolcano","ComplexHeatmap","Hmisc","samr","d3heatmap","simplifyEnrichment")
+#"RFunrichWebService",
+# Instala los paquetes sinó los tienes instalados
+.inst <- .packages %in% installed.packages()
+if(length(.packages[!.inst]) > 0) {install.packages(.packages[!.inst])
+  install_github("vqv/ggbiplot")
+  install_github("fxia22/RadaFDR")
+  BiocManager::install(c("mixOmics","phyloseq","GOsummaries"))
+  BiocManager::install('EnhancedVolcano')
+  BiocManager::install("ComplexHeatmap")
+  install_github("rstudio/d3heatmap")
+  BiocManager::install("simplifyEnrichment")
+  }
+
+# Carga los paquetes sinó los tienes cargados
+lapply(.packages, require, character.only=TRUE)
+#======END INSTALL PACKAGES============================================================================
+
+#=====Loading dataset================================================================================== 
+Big.table <- as.data.frame(readxl::read_excel("./Indira meta2_2020_short3.xlsx")) # Open the data
+rownames(Big.table) <- paste(Big.table$Accession,".",Big.table$`Gene`)
+class(Big.table)
+
+table_paired <- as.data.frame(readxl::read_excel("./Indira meta2_2020_short2_paired_.xlsx")) # Open the data
+rownames(table_paired) <- paste(table_paired$Accession,".",table_paired$`Gene`)
+class(table_paired)
+
+table_paired <- as.data.frame(readxl::read_excel("./Indira meta2_2020_short4_paired_.xlsx")) # Open the data
+class(table_paired)
+rownames(table_paired) <- paste(table_paired$Accession,".",table_paired$`Gene`)
+
+main_table <- Big.table %>% select(contains("P_"))
+#rownames(main_table) <- Big.table$Accession
+
+Annotations <- as.data.frame(readxl::read_excel("./annotation_col.xlsx"))
+row.names(Annotations) <- Annotations$sample
+
+Annotations.num <- read.delim("annotation_col_num.txt")
+row.names(Annotations.num) <- Annotations.num$name
+head(Annotations.num)
+
+row.Annotations <- as.data.frame(readxl::read_excel("./ttest.results_100.xlsx")) # Open the data
+class(row.Annotations)
+rownames(row.Annotations) <- row.Annotations$Gene
+row.Annotations$Log10.p <- log10(row.Annotations$q.values)*(-1)
+
+##====sPLS-DA and PCA with paired data =========MULTIVARIATE ANALYSIS ============
+## Previously, we subtracted from the protein intensity of a given sample, 
+## the mean of the two samples belonging to the patient from which they were taken. 
+
+  main.data <- table_paired %>% select(contains("P_"))  #as.data.frame(table_paired[, 11:ncol(table_paired)])
+  
+  main.data <- as.data.frame(t(main.data))
+  
+  cond.names <- as.factor(c(rep("competent (MII)",7),rep("non-competent",7)))
+  
+  #PCA
+  pca.res <- mixOmics::pca(main.data, ncomp = 5)
+  
+  plotIndiv(pca.res, group = cond.names, legend = TRUE, title = 'PCA paired',
+            ind.names = T,ellipse = T,comp = 1:2)   
+  
+  #sPLS-DA
+  splsda.res <- mixOmics::splsda(main.data, cond.names, ncomp = 5,
+                                 mode = "regression", keepX = (c(100,100,100)))#, keepX = (c(50,50,50))) ##sPLS-DA model
+      # sPLS-DA plot
+      explained.variance <- splsda.res$explained_variance$X
+  
+  
+      plotIndiv(splsda.res, ind.names = F, legend = TRUE, ellipse = TRUE,
+                title = 'sPLS-DA',comp = 1:2,style = 'ggplot2',
+                X.label=paste("Component 1 (",round(explained.variance[1]*100,0),"%)",sep = ""), 
+                Y.label = paste("Component 2 (",round(explained.variance[2]*100,0),"%)",sep = ""))
+      #3D
+      #plotIndiv(splsda.res, ind.names = FALSE, legend = TRUE, ellipse = TRUE,
+      #          title = 'sPLS-DA',comp = 1:3,style = '3d') #library('rgl')
+                                                           #rgl.snapshot('Images/3d_pca.png')  # to save
+      
+      #The plot Loading function displays the loading weights, 
+      plotLoadings(splsda.res, comp = 1, title = 'Loadings on comp 1', size.name = 0.3,
+                     contrib = 'max', method = 'mean',ndisplay=100)#,ndisplay=50)
+  
+      #background = background.predict(splsda.res, comp.predicted=2, dist = "max.dist") 
+  
+      #plotIndiv(splsda.res, ind.names = FALSE, legend = TRUE, ellipse = TRUE,
+      #      title = 'PLS-DA',comp = 1:2, background = background)
+      
+      #Heat-map plot
+      cond.row <- palette()[as.numeric(cond.names)]
+      cim(splsda.res, comp = 1, xlab = "proteins", ylab = "sample",col.cex=0.85,
+          margins = c(7, 7),row.sideColors = cond.row,zoom = F)
+  
+      cim.results <- cim(splsda.res, comp = 1, xlab = "proteins", ylab = "sample",col.cex=0.85,
+                        margins = c(7, 7),row.sideColors = cond.row,zoom = F)
+      cim.matrix <- cim.results$mat
+      
+  # saving matrixs
+      
+  loading.matrix.X <- splsda.res$loadings$X
+  #write.csv(loading.matrix.X,"loading.matrix.X_top100.csv")
+ 
+  
+  # repeatings PLS-DA with 13 samples
+  main.data <- main.data[-10,]
+  cond.names <- as.factor(c(rep("competent (MII)",7),rep("non-competent",6)))
+  pch_patient_gr <- Annotations$patient
+  cex_size <- Annotations$size
+  
+  splsda.res <- mixOmics::splsda(main.data, cond.names, ncomp = 5,
+                                 mode = "regression", keepX = (c(100,100,100)))#, keepX = (c(50,50,50))) ##sPLS-DA model
+  
+  # sPLS-DA plot 
+  
+  explained.variance <- splsda.res$explained_variance$X
+  
+  
+  plotIndiv(splsda.res, ind.names = F, legend = TRUE, ellipse = TRUE, ellipse.level = 0.95,
+            title = 'sPLS-DA', size.title = 11,centroid = F, star = F,
+            comp = 1:2,style = 'ggplot2',abline = T, cex = 0.8, 
+            size.legend=10, legend.title="oocyte competence",legend.title.pch="Patients",size.legend.title=10,
+            pch = pch_patient_gr,legend.position="top",
+            X.label=paste("Component 1 (",round(explained.variance[1]*100,0),"%)",sep = ""), 
+            Y.label = paste("Component 2 (",round(explained.variance[2]*100,0),"%)",sep = ""))
+  
+
+
+      
+##====STUDENT t-test with paired data=======UNIVARIATE ANALYSIS ============      
+loading.matrix.X <- as.data.frame(loading.matrix.X)
+head(loading.matrix.X)
+
+loading.matrix.X.100 <- subset(loading.matrix.X, loading.matrix.X$comp1!=0)
+loading.matrix.X.100$sample <- row.names(loading.matrix.X.100)
+
+main.data <- table_paired %>% select(contains("P_"))  #as.data.frame(table_paired[, 11:ncol(table_paired)])
+
+m.ttest <- as.data.frame(main.data)    #Proteins expression to be evaluated
+m.ttest$sample <- row.names(m.ttest)
+
+m.ttest1 <- plyr::join_all(list(loading.matrix.X.100,m.ttest), by="sample")   # matriz with the top 100 proteins that most contribute to distinguish in the sPLS-DA analysis 
+row.names(m.ttest1) <- m.ttest1$sample
+m.ttest1 <- m.ttest1[,7:ncol(m.ttest1)]
+
+cond.names <- as.factor(c(rep("competent (MII)",7),rep("non-competent",7)))
+cond <- as.data.frame(cond.names)
+cond$sample <- colnames(m.ttest1)          #conditions to compare
+
+ttest.proteome <- function(m, groups){
+  
+  ttest <- matrix(nrow=nrow(m),ncol = 4)
+  
+  for (i in 1:nrow(m)) {
+     
+      prot.data <- as.data.frame(t(m[i,]))
+      prot.data$sample <- row.names(prot.data)
+          
+      data <- join_all(list(prot.data,groups),by="sample")
+      row.names(data) <- data$sample
+      data <- data[,-2]
+          
+      #==ttest
+      ttest1 <- t.test(data[,1]~data[,2], var.equal = T)
+      
+      ttest[i,1] <- ttest1$conf.int[1]
+      ttest[i,2] <- ttest1$conf.int[2]
+      ttest[i,3] <- ttest1$estimate[1]-ttest1$estimate[2]
+      ttest[i,4] <- ttest1$p.value 
+    }
+     
+    row.names(ttest) <- row.names(m)
+    colnames(ttest) <- c("Lower Limit", "Upper Limit","Log2.Fold change","p.v_t.test")
+    
+    ttest <- as.data.frame(ttest)
+    
+    # Adjusting p-values by FDR multitesting
+    
+    ttest$q.values <- p.adjust(ttest$p.v_t.test, method = "fdr")
+    
+    for (j in 4:ncol(ttest)){
+        
+      ttest$sig <- cut(ttest[,j], breaks=c(-Inf, 0.001, 0.01, 0.05, Inf), label=c("***", "**", "*", ""))
+        
+      colnames(ttest) <- c(colnames(ttest)[-c(length(colnames(ttest)))],paste("Sig_",colnames(ttest)[j]))
+      }
+    
+  return(ttest)
+}
+
+ttest.results <- ttest.proteome(m = m.ttest1,groups = cond)
+ttest.results$`-Log10 p-values` <- log10(ttest.results$p.v_t.test)*(-1)
+
+ttest.results$sample<- row.names(ttest.results)
+ttest.results1 <- plyr::join_all(list(ttest.results,loading.matrix.X.100), by="sample")
+
+#write.csv(ttest.results1, "ttest.results_100_2020.csv")
+
+m.ttest0<-dplyr::select(m.ttest, -sample)
+ttest.results <- ttest.proteome(m = m.ttest0,groups = cond)
+ttest.results$`-Log10 p-values` <- log10(ttest.results$p.v_t.test)*(-1)
+
+#write.csv(ttest.results, "ttest.results_all.csv")
+
+#SAMseq  https://rdrr.io/cran/samr/man/SAMseq.html #no sirve para proteomics (negative values no allowed)
+x <- m.ttest1
+y <- cond$cond.names
+
+samfit.M2 <- SAMseq(x, y, resp.type = "Two class unpaired") 
+
+##==========HEATMAP================================
+library(ComplexHeatmap)
+library(pheatmap)
+
+cim.matrix <- as.data.frame(t(cim.matrix))
+cim.matrix1 <- cim.matrix[ , !(names(cim.matrix) %in% c("P_982.46_B"))]
+
+col.Annotation <- Annotations[,c("cond.","size" ,"patient","sample")]
+colnames(col.Annotation) <- c(c("condition", "Follicular size","patient","sample"))
+row.names(col.Annotation) <- col.Annotation$sample
+
+break2 <- round(seq(min(cim.matrix1),max(cim.matrix1),length=101 ),2)
+
+col3<- colorRampPalette(c("dodgerblue4","dodgerblue3", "lemonchiffon","coral2","brown3"))(100)
+col4<- colorRampPalette(c("deepskyblue1","white","darkorchid3"))(100)
+
+
+#Making a vector of gene codes
+library(Hmisc)
+
+gene.code.maker <- function(x){
+  
+     genes.code <- character()
+
+     for (i in 1:nrow(x)){
+          m <- row.names(x)[i]
+          substring2(m, 1,(substring.location(m,".")[[1]])+1) <- ''
+          genes.code[i] <- m
+     }
+     return(genes.code)
+}
+
+genes.code <- gene.code.maker(x=cim.matrix1)
+genes.code
+
+
+row.Annotations1 <- row.Annotations %>% select(c("Log2.Fold change","Log10.p", "secreted"))
+
+
+ann_colors = list(
+  `Log2.Fold change` = col4
+)
+
+row.names(cim.matrix1) <- genes.code
+
+pheatmap(cim.matrix1, main="",cutree_cols = 1,border_color = "white",
+         cutree_rows = 1, color = col3,show_rownames = T, show_colnames = T,annotation_colors = ann_colors,
+         cluster_cols = T, cluster_rows = T,annotation_col = col.Annotation,annotation_row = row.Annotations1,
+         clustering_distance_rows = "euclidean", clustering_method = "average",
+         fontsize = 7, legend = T, treeheight_col = 10,
+         treeheight_row = 15, breaks = break2) #, filename = "test.pdf", cellwidth = 10, cellheight = 12
+
+#heatmap complex
+
+row.Annotations1 <- row.Annotations %>% select(c("Gene","Log2.Fold change","Log10.p", "secreted"))
+
+cim.matrix1.m <- as.matrix(cim.matrix1)
+
+heatmap(cim.matrix1.m, scale = "none")
+
+
+cim.matrix1.m1 <- as.data.frame(cim.matrix1.m)
+cim.matrix1.m1$Gene <- rownames(cim.matrix1.m)
+
+loading.top100_gene <- gene.code.maker(loading.matrix.X.100)
+loading.matrix.X.100$Gene <- loading.top100_gene
+
+cim.matrix1.m1<-plyr::join_all(list(cim.matrix1.m1, row.Annotations1, loading.matrix.X.100, clust.ff),by="Gene")
+row.names(cim.matrix1.m1)<- cim.matrix1.m1$Gene
+
+ff <- as.data.frame(t(cim.matrix1.m))
+ff$sample <- rownames(ff)
+ff <- plyr::join_all(list(ff,col.Annotation),by = "sample")
+col.Annotation1 <- as.data.frame(ff[,c("sample","condition","Follicular size","patient")])
+
+matrix1 <- as.matrix(cim.matrix1.m1[,1:13])
+matrix2 <- as.data.frame(cim.matrix1.m1[,14:ncol(cim.matrix1.m1)])
+
+col3<- colorRampPalette(c("mediumblue","dodgerblue3", "lemonchiffon","coral2","red3"))(100)
+
+# TOP ANNOTATIONS. 
+# Define colors for each levels of qualitative variables
+# Define gradient color for continuous variable (mpg)
+col.top = list(condition = c("C" = "sienna1","M2" = "steelblue3"),
+               `Follicular size` = colorRamp2(c(4,8), 
+                                              c("white", "green")))
+col.secreted = list(secreted = c("secreted" = "green3"))
+
+# Create the heatmap annotation
+ha.top <- HeatmapAnnotation(
+  condition = col.Annotation1$condition,
+  `Follicular size` = col.Annotation1$`Follicular size`,
+  col = col.top, show_legend = T,simple_anno_size = unit(0.3, "cm"),
+  patient=anno_simple(col.Annotation1$patient,pch=c(1:6, 1:7),pt_gp = gpar(col = "black"), pt_size = unit(1.5, "mm")))
+
+row.annot <- rowAnnotation(comp1 = anno_barplot(matrix2$comp1,bar_width = 1, gp = gpar(col = ifelse(matrix2$comp1 > 0, "red", "blue"))),
+                           prot = anno_text(matrix2$Gene, gp = gpar(fontsize = 5)))
+
+row.annot1 <- rowAnnotation(comp1 = anno_barplot(matrix2$comp1,bar_width = 1),
+                           prot = anno_text(matrix2$Gene, gp = gpar(fontsize = 5)))
+# Combine the heatmap and the annotation
+Heatmap(matrix1, name = "sPLS-DA (score)",row_names_gp = gpar(fontsize = 7), row_km = 3,column_km = 2,column_names_gp = gpar(fontsize = 8),
+        top_annotation = ha.top, show_row_names = F,col = col3, show_column_names = T)+
+  Heatmap(matrix2$`Log2.Fold change`, name = "Log2 Fold change", width = unit(3, "mm"),
+          col = circlize::colorRamp2(c(-1, 0,1), c("cyan3","white", "orange2")))+
+  Heatmap(matrix2$Log10.p, name = "-Log10.adj.p-value(t-test)", width = unit(3, "mm"),
+          col = circlize::colorRamp2(c(1.32, 2,6), c("gold", "goldenrod2","goldenrod4")))+
+  Heatmap(matrix2$secreted, name = "Secreted proteins", width = unit(3, "mm"), 
+          col = col.secreted,show_row_names = T, right_annotation = row.annot1,row_names_side = "left")
+
+
+ff<-kmeans(matrix1,centers = 3)
+clust.ff<-as.data.frame(ff$cluster)
+colnames(clust.ff)<- "cluster"
+clust.ff$Gene<- row.names(clust.ff)
+clust.ff$cluster<-as.factor(clus)
+
+ff.hclust <- hclust(dist(matrix1,method = "euclidean"),method = "ward.D2")
+plot(ff.hclust,hang = -1)
+memb <- cutree(ff.hclust, k = 10)
+
+Heatmap(matrix1, name = "sPLS-DA (score)",row_names_gp = gpar(fontsize = 7), row_km = 3,column_km = 2,column_names_gp = gpar(fontsize = 8),
+        top_annotation = ha.top, show_row_names = F,col = col3, show_column_names = T)+
+  Heatmap(matrix2$`Log2.Fold change`, name = "Log2 Fold change", width = unit(3, "mm"),
+          col = circlize::colorRamp2(c(-1, 0,1), c("cyan3","white", "orange2")))+
+  Heatmap(matrix2$Log10.p, name = "-Log10.adj.p-value(t-test)", width = unit(3, "mm"),
+          col = circlize::colorRamp2(c(1.32, 2,6), c("gold", "goldenrod2","goldenrod4")))+
+  Heatmap(matrix2$secreted, name = "Secreted proteins", width = unit(3, "mm"), 
+          col = col.secreted,show_row_names = T, right_annotation = row.annot1,row_names_side = "left")+
+  Heatmap(matrix2$cluster, name = "cluster.kmean", width = unit(3, "mm"), 
+          show_row_names = T, right_annotation = row.annot1,row_names_side = "left")
+
+
+# Define some graphics to display the distribution of columns
+.hist = anno_histogram(cim.matrix1.m, gp = gpar(fill = "lightblue"))
+.density = anno_density(cim.matrix1.m, type = "line", gp = gpar(col = "blue"))
+ha_mix_top = HeatmapAnnotation(
+  hist = .hist, density = .density,
+  height = unit(3.8, "cm")
+)
+# Define some graphics to display the distribution of rows
+.violin = anno_density(cim.matrix1.m, type = "violin", 
+                       gp = gpar(fill = "lightblue"), which = "row")
+.boxplot = anno_boxplot(cim.matrix1.m, which = "row")
+ha_mix_right = HeatmapAnnotation(violin = .violin, bxplt = .boxplot,
+                                 which = "row", width = unit(4, "cm"))
+# Combine annotation with heatmap
+Heatmap(cim.matrix1.m, name = "mtcars", 
+        column_names_gp = gpar(fontsize = 8),
+        top_annotation = ha_mix_top) + ha_mix_right
+
+
+##=================================================================
+
+# Volcanoo plot    https://www.bioconductor.org/packages/release/bioc/vignettes/EnhancedVolcano/inst/doc/EnhancedVolcano.html
+plot(ttest.results$`Log2.Fold change`,ttest.results$`-Log10 p-values`, data=ttest.results)
+
+ggplot(ttest.results, aes(`Log2.Fold change`, `-Log10 p-values`)) + geom_point(alpha = 1 / 3) + 
+  theme_bw()+labs(subtitle="",
+                  x="Log2.Fold change", 
+                  y= "-Log10 p-values", 
+                  caption="")
+
+labels <- as.character(rownames(ttest.results))
+EnhancedVolcano(ttest.results,
+                lab = ttest.results$Gene,
+                x = "Log2.Fold change",
+                y = "p.v_t.test",
+                pCutoff = 8.439785e-04,
+                FCcutoff = 0,
+                pointSize = 1.5,
+                labSize = 4.0,
+                ylim = c(0, 10),
+                xlim = c(-2.2, 2),
+                col=c('grey', 'grey', 'grey', 'red3'),
+                colAlpha = 1,
+                drawConnectors = TRUE,
+                widthConnectors = 0.2,
+                colConnectors = 'grey30',
+                legendPosition = 'top',
+                legendLabSize = 12,
+                legendIconSize = 2.0) 
+
+
+main.data2 <- as.data.frame(t(main.data))
+main.data2$P_982.46_B <- main.data2$P_982.46
+m.ttest1 <- main.data2                      #Proteins expression to be evaluated
+
+cond1 <- as.data.frame(c(rep("Metaphase2",7),rep("Control",7)))
+cond1$sample <- colnames(m.ttest1)          #conditions to compare     
+      
+ttest.results2 <- ttest.proteome(m = m.ttest1,groups = cond1)     
+
+
+#===================Pathways analysis=====================================================================================
+setwd("E:/Work/TP PROJECT/DATA ANALYSIS/02 Follicles study/Metaphase2/Funrich2020/Plot in R") 
+
+Funrich <- readxl::read_excel("./GO_Funrinch_Pathway_adj.p05.xlsx") # Open the data
+class(Funrich)
+Funrich <- as.data.frame(Funrich)
+
+
+GENELIST <- readxl::read_excel("./GENELIST1.xlsx")
+head(GENELIST)
+GENELIST <- as.data.frame(GENELIST)
+
+#=======================================
+circ1 <- circle_dat(Funrich, GENELIST)
+
+circ1 <- circ1[order(circ1$category,-circ1$logFC),]
+circ1 <- subset(circ1,circ1$category=="Pathway")
+#circ1 <- subset(circ1,circ1$category=="KEGG_PATHWAY" | circ1$category=="BIOCARTA")
+circ1 <- circ1[order(-circ1$logFC, circ1$term),]
+
+#write.table(circ1,"circ1.txt",sep='\t')
+# GOBar(subset(circ1, category == 'Pathway'))
+# GOBar(circ1, display = 'multiple')
+# GOBar(circ1, display = 'multiple', title = 'Z-score coloured barplot', zsc.col = c('yellow', 'black', 'cyan'))
+# GOBubble(circ1, labels = 3)
+
+reduced_circ1 <- reduce_overlap(circ1, overlap = 0.95)
+
+GOCircle(circ1, nsub = 15, label.size=3)
+
+process <- as.matrix(circ1$term)
+process <- process[!duplicated(process), ]
+
+#process <- c("Nucleus","Cytoplasm","Extracellular matrix","Extracellular")
+
+#process <- levels(as.factor(circ1$term))
+#process <- levels(as.factor(circ1$term))[1:15]
+#process <- as.character(Funrich$Term[1:15])
+
+geness <- GENELIST[,1:2]
+head(geness)
+
+chord <- chord_dat(circ1, geness, process)
+
+# Generate the matrix with a list of selected genes
+chord <- chord_dat(data = circ1, genes = geness)
+# Generate the matrix with selected processes
+chord <- chord_dat(data = circ1, process = process)
+
+chord <- chord_dat(data = circ1, genes = geness, process = process)
+
+GOChord(chord, space = 0.02, gene.order = "logFC",gene.space = 0.3, gene.size = 2.9, process.label=8)
+
